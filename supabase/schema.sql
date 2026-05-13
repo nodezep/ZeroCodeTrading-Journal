@@ -67,6 +67,7 @@ create table if not exists public.daily_plans (
   personal_time_notes text,
   post_session_notes text,
   next_day_planning text,
+  daily_checklist jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint daily_plans_user_date_unique unique (user_id, date)

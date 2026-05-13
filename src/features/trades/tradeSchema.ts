@@ -27,7 +27,16 @@ export const tradeUpsertSchema = z.object({
   setup_details: z.string().nullable(),
   setup_checklist: z.array(checklistItemSchema).nullable(),
   lessons_learned: z.string().nullable(),
-  screenshot_url: z.string().url().nullable(),
+  screenshot_url: z.string().nullable(), // Removed url() to be more flexible, can add back later if needed
+
+  // New fields
+  journal_type: z.enum(['Live', 'Backtest']),
+  entry_price: z.number().nullable(),
+  stop_loss: z.number().nullable(),
+  take_profit: z.number().nullable(),
+  setup_grade: z.enum(['A', 'B', 'C', 'D']).nullable(),
+  mistakes: z.array(z.string()).nullable(),
+  confluence_count: z.number().nullable(),
 })
 
 export type TradeUpsertValues = z.infer<typeof tradeUpsertSchema>

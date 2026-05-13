@@ -10,6 +10,7 @@ React (TypeScript) + Supabase (Postgres/Auth) trading journal with a master trad
 3. If you already ran the schema earlier, also run the latest migration(s):
    - `supabase/migrations/001_add_setup_checklist.sql`
    - `supabase/migrations/002_add_presets_and_trade_fields.sql`
+   - `supabase/migrations/003_add_daily_checklist.sql`
 3. (Optional) Seed example trades:
    - Open `supabase/seed.sql` and replace `user_id` with your `auth.users.id`, then run it.
 

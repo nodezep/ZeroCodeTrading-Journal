@@ -13,8 +13,75 @@ type DailyPlan = {
   personal_time_notes: string | null
   post_session_notes: string | null
   next_day_planning: string | null
+  daily_checklist: DailyChecklistItem[] | null
   created_at: string
   updated_at: string
+}
+
+type DailyChecklistItem = {
+  id: string
+  label: string
+  checked: boolean
+}
+
+const DEFAULT_DAILY_CHECKLIST: DailyChecklistItem[] = [
+  { id: 'wake_0500', label: '5:00 AM — Wake up (no phone, no scrolling)', checked: false },
+  { id: 'cold_stretch_breathe', label: 'Cold water → stretch → breathe → move', checked: false },
+  { id: 'silence_0515', label: '5:15 AM — Silence & clarity (notebook planning)', checked: false },
+  { id: 'movement_0545', label: '5:45 AM — First movement (run/lift/sweat/yoga)', checked: false },
+  { id: 'breakfast_0630', label: '6:30 AM — Smart breakfast (protein/fiber/water)', checked: false },
+  { id: 'trading_block_0700', label: '7:00–10:00 AM — Deep Work (Trading forex) block', checked: false },
+  { id: 'reset_1000', label: '10:00–10:30 AM — Reset (walk/breathe)', checked: false },
+  { id: 'growth_1030', label: '10:30 AM–12:30 PM — Growth time (learn/build)', checked: false },
+  { id: 'lunch_1230', label: '12:30–1:30 PM — Lunch & movement (walk/stretch)', checked: false },
+  { id: 'second_wave_1330', label: '1:30–4:30 PM — Second wave (education/projects)', checked: false },
+  { id: 'unload_1630', label: '4:30–5:00 PM — Unload body (stretch/walk)', checked: false },
+  { id: 'real_life_1700', label: '5:00 PM onward — Real life (screens off, prayers, bible, family)', checked: false },
+  { id: 'wind_down_2130', label: '9:30 PM — Wind down (dim lights, no screens)', checked: false },
+  { id: 'sleep_2200', label: '10:00 PM — Sleep (7–8 hours)', checked: false },
+]
+
+function normalizeChecklist(input: unknown): DailyChecklistItem[] {
+  const map = new Map<string, DailyChecklistItem>()
+  if (Array.isArray(input)) {
+    for (const raw of input) {
+      if (!raw || typeof raw !== 'object') continue
+      const item = raw as Partial<DailyChecklistItem>
+      if (typeof item.id !== 'string' || typeof item.label !== 'string') continue
+      map.set(item.id, { id: item.id, label: item.label, checked: !!item.checked })
+    }
+  }
+  return DEFAULT_DAILY_CHECKLIST.map((d) => map.get(d.id) ?? d)
+}
+
+const DEFAULT_PLAN_TEMPLATE = {
+  pre_session_notes: [
+    'Sleep: __h | Energy: __/10 | Mood: __/10',
+    'Today’s goal (1 sentence): ',
+    'Non-negotiables: no phone / workout / breakfast ✅',
+    'Market context (high level): ',
+    'I will NOT do: ',
+  ].join('\n'),
+  trading_session_notes: [
+    'Session: London / New York / Asia',
+    'Pairs on watch (2–5): ',
+    'Setup checklist required: all ticks before entry ✅',
+    'Entry rules (1–3): ',
+    'Risk rules: max trades __ | max loss __R | risk/trade __%',
+    'Exit rules: partials / BE rules: ',
+  ].join('\n'),
+  personal_time_notes: ['Reset plan: walk/breathe ✅', 'Growth focus: ', 'One improvement today: '].join('\n'),
+  post_session_notes: [
+    'Did I follow rules? Yes/No — why:',
+    'What worked (1–3):',
+    'Mistakes (1–3):',
+    'Emotion log (what + when):',
+  ].join('\n'),
+  next_day_planning: [
+    'Fix one mistake with a rule: “Tomorrow I will …”',
+    'Tomorrow watchlist idea:',
+    'One improvement goal:',
+  ].join('\n'),
 }
 
 async function fetchDailyPlan(date: string) {
@@ -34,6 +101,7 @@ export function DailyPlanPage() {
     post_session_notes: '',
     next_day_planning: '',
   })
+  const [checklist, setChecklist] = useState<DailyChecklistItem[]>(() => normalizeChecklist(null))
 
   const queryKey = useMemo(() => ['daily_plan', selectedDate] as const, [selectedDate])
   const planQuery = useQuery({
@@ -52,6 +120,7 @@ export function DailyPlanPage() {
         personal_time_notes: values.personal_time_notes || null,
         post_session_notes: values.post_session_notes || null,
         next_day_planning: values.next_day_planning || null,
+        daily_checklist: checklist,
       }
 
       const { error } = await supabase
@@ -75,6 +144,7 @@ export function DailyPlanPage() {
       post_session_notes: hydrated?.post_session_notes ?? '',
       next_day_planning: hydrated?.next_day_planning ?? '',
     })
+    setChecklist(normalizeChecklist(hydrated?.daily_checklist))
   }, [planQuery.data, planQuery.isSuccess, selectedDate])
 
   return (
@@ -124,6 +194,34 @@ export function DailyPlanPage() {
       </section>
 
       <section className="mt-6 grid gap-4">
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/20">
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-sm font-medium text-zinc-900 dark:text-zinc-200">
+              Daily Accountability Checklist
+            </div>
+            <div className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200">
+              {checklist.filter((c) => c.checked).length}/{checklist.length} complete
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2">
+            {checklist.map((item, idx) => (
+              <label key={item.id} className="flex cursor-pointer items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4 rounded border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
+                  checked={item.checked}
+                  onChange={(e) => {
+                    setChecklist((prev) =>
+                      prev.map((p, i) => (i === idx ? { ...p, checked: e.target.checked } : p)),
+                    )
+                  }}
+                />
+                <span className="text-zinc-900 dark:text-zinc-200">{item.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         {(
           [
             ['Pre-Session', 'pre_session_notes'],
@@ -147,7 +245,16 @@ export function DailyPlanPage() {
         ))}
       </section>
 
-      <div className="mt-6 flex items-center justify-end">
+      <div className="mt-6 flex items-center justify-end gap-3">
+        <button
+          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
+          type="button"
+          onClick={() => {
+            setValues((v) => ({ ...v, ...DEFAULT_PLAN_TEMPLATE }))
+          }}
+        >
+          Load template
+        </button>
         <button
           className="rounded-md bg-purple-500 px-3 py-2 text-sm font-medium text-white hover:bg-purple-400 disabled:opacity-50"
           type="button"

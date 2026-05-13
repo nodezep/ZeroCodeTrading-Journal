@@ -1,14 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   html {
-    @apply h-full;
+    @apply h-full antialiased;
   }
 
   body {
-    @apply h-full bg-white text-zinc-950 antialiased;
+    @apply h-full bg-[#050505] text-zinc-100 selection:bg-purple-500/30 font-['Outfit',sans-serif];
+    background-image: 
+      radial-gradient(at 0% 0%, hsla(270, 70%, 15%, 0.15) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, hsla(240, 70%, 15%, 0.1) 0px, transparent 50%);
+    background-attachment: fixed;
   }
 
   #root {
@@ -17,7 +23,14 @@
 }
 
 @layer base {
-  html.dark body {
-    @apply bg-zinc-950 text-zinc-100;
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-zinc-950;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800 rounded-full border-2 border-zinc-950 hover:bg-zinc-700 transition-colors;
   }
 }

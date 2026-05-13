@@ -6,13 +6,14 @@ import { useSession } from '../auth/useSession'
 import type { Trade } from './types'
 import { TradeUpsertDialog } from './TradeUpsertDialog'
 import type { TradeUpsertValues } from './tradeSchema'
-import { fetchPairPresets, fetchRrPresets, fetchSessionPresets } from '../presets/presets'
+import { fetchPairPresets, fetchSessionPresets } from '../presets/presets'
 
 type Filters = {
   search: string
   onlyWins: boolean
   onlyLosses: boolean
   position: 'All' | 'Long' | 'Short'
+  journalType: 'Live' | 'Backtest'
 }
 
 async function fetchTrades(filters: Filters) {
@@ -25,6 +26,7 @@ async function fetchTrades(filters: Filters) {
   if (filters.onlyWins) query = query.eq('is_win', true)
   if (filters.onlyLosses) query = query.eq('is_loss', true)
   if (filters.position !== 'All') query = query.eq('position_type', filters.position)
+  query = query.eq('journal_type', filters.journalType)
   if (filters.search.trim()) {
     const s = filters.search.trim()
     query = query.or(
@@ -54,6 +56,7 @@ export function TradeLogPage() {
     onlyWins: false,
     onlyLosses: false,
     position: 'All',
+    journalType: (localStorage.getItem('preferred_journal_type') as 'Live' | 'Backtest') || 'Live',
   })
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeTrade, setActiveTrade] = useState<Trade | null>(null)
@@ -108,7 +111,6 @@ export function TradeLogPage() {
     queryKey: ['presets', 'sessions'],
     queryFn: fetchSessionPresets,
   })
-  const rrPresetsQuery = useQuery({ queryKey: ['presets', 'rr'], queryFn: fetchRrPresets })
 
   const stats = useMemo(() => {
     const trades = tradesQuery.data ?? []
@@ -160,139 +162,156 @@ export function TradeLogPage() {
   })
 
   return (
-    <div className="mx-auto max-w-6xl px-6 py-10">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Master Trade Log</h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Your last 200 trades (MVP)</p>
+    <div className="mx-auto max-w-6xl px-6 py-8 transition-all duration-300">
+      <nav className="mb-8 flex items-center justify-between border-b border-zinc-800 pb-4">
+        <div className="flex gap-6">
+          <a href="/" className="text-sm font-medium text-zinc-100 hover:text-purple-400 transition-colors">Journal</a>
+          <a href="/plan" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Daily Plan</a>
+          <a href="/settings" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Settings</a>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-4">
+          <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">{session?.user?.email}</span>
           <button
-            className="rounded-md bg-purple-500 px-3 py-2 text-sm font-medium text-white hover:bg-purple-400"
+            type="button"
+            onClick={async () => {
+              await supabase.auth.signOut()
+              window.location.href = '/login'
+            }}
+            className="text-xs font-bold text-zinc-500 hover:text-rose-400 transition-colors uppercase tracking-wider"
+          >
+            Sign Out
+          </button>
+        </div>
+      </nav>
+
+      <header className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-zinc-100 to-zinc-400 bg-clip-text text-transparent">
+            {filters.journalType} Trade Log
+          </h1>
+          <p className="text-sm text-zinc-500">
+            {filters.journalType === 'Live' ? 'Track your real-time execution and performance.' : 'Deep dive into your backtesting sessions and data.'}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex rounded-lg bg-zinc-900/50 p-1 border border-zinc-800">
+            {(['Live', 'Backtest'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => {
+                  setFilters(f => ({ ...f, journalType: type }))
+                  localStorage.setItem('preferred_journal_type', type)
+                }}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
+                  filters.journalType === type
+                    ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+                }`}
+              >
+                {type}
+              </button>
+            ))}
+          </div>
+          <button
+            className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-purple-500/25 hover:bg-purple-500 hover:-translate-y-0.5 transition-all active:translate-y-0"
             type="button"
             onClick={() => {
               setActiveTrade(null)
               setDialogOpen(true)
             }}
           >
-            Add trade
-          </button>
-          <a
-            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
-            href="/plan"
-          >
-            Daily plan
-          </a>
-          <a
-            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
-            href="/settings"
-          >
-            Settings
-          </a>
-          <button
-            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
-            type="button"
-            onClick={async () => {
-              await supabase.auth.signOut()
-              window.location.href = '/login'
-            }}
-          >
-            Sign out
+            New Trade
           </button>
         </div>
       </header>
 
-      <section className="mt-6 grid gap-3 rounded-xl border border-zinc-200 bg-white p-4 sm:grid-cols-4 dark:border-zinc-800 dark:bg-zinc-900/20">
+      <section className="mt-8 grid gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 sm:grid-cols-4 ring-1 ring-white/5 backdrop-blur-md">
         <label className="sm:col-span-2">
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">Search</div>
-          <input
-            className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-purple-500/30 focus:ring-4 dark:border-zinc-800 dark:bg-zinc-950"
-            value={filters.search}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            placeholder="coin pair, strategy, notes…"
-          />
+          <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Global Search</div>
+          <div className="relative mt-2">
+            <input
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-100 outline-none ring-purple-500/20 focus:ring-4 focus:border-purple-500/50 transition-all pl-10"
+              value={filters.search}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              placeholder="Pairs, strategies, or notes..."
+            />
+            <svg className="absolute left-3.5 top-3 w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
         </label>
 
         <label>
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">Position</div>
+          <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Position</div>
           <select
-            className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-purple-500/30 focus:ring-4 dark:border-zinc-800 dark:bg-zinc-950"
+            className="mt-2 w-full rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-2.5 text-sm text-zinc-100 outline-none ring-purple-500/20 focus:ring-4 focus:border-purple-500/50 transition-all"
             value={filters.position}
             onChange={(e) =>
               setFilters((f) => ({ ...f, position: e.target.value as Filters['position'] }))
             }
           >
-            <option value="All">All</option>
-            <option value="Long">Long</option>
-            <option value="Short">Short</option>
+            <option value="All">All Directions</option>
+            <option value="Long">Long Only</option>
+            <option value="Short">Short Only</option>
           </select>
         </label>
 
-        <div className="flex items-end gap-4">
-          <label className="flex items-center gap-2 text-sm">
+        <div className="flex items-end gap-3 pb-1">
+          <label className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-400 cursor-pointer hover:bg-zinc-900 transition-all min-w-[80px]">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
+              className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-0"
               checked={filters.onlyWins}
               onChange={(e) => setFilters((f) => ({ ...f, onlyWins: e.target.checked }))}
             />
-            Wins
+            <span className="truncate">Wins</span>
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm font-medium text-zinc-400 cursor-pointer hover:bg-zinc-900 transition-all min-w-[80px]">
             <input
               type="checkbox"
-              className="h-4 w-4 rounded border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
+              className="h-4 w-4 rounded border-zinc-700 bg-zinc-800 text-purple-600 focus:ring-0"
               checked={filters.onlyLosses}
               onChange={(e) => setFilters((f) => ({ ...f, onlyLosses: e.target.checked }))}
             />
-            Losses
+            <span className="truncate">Losses</span>
           </label>
         </div>
       </section>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-4">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/20">
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">Total PnL</div>
-          <div className="mt-2 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            {stats.totalPnl.toFixed(2)}
+      <section className="mt-8 grid gap-4 sm:grid-cols-4">
+        {[
+          { label: 'Total Profit/Loss', value: stats.totalPnl.toFixed(2), trend: stats.totalPnl >= 0 ? 'up' : 'down' },
+          { label: 'Success Rate', value: `${stats.winRate.toFixed(1)}%`, trend: 'neutral' },
+          { label: 'W / L Ratio', value: `${stats.wins} : ${stats.losses}`, trend: 'neutral' },
+          { label: 'Sample Size', value: stats.totalTrades, trend: 'neutral' },
+        ].map((stat, i) => (
+          <div key={i} className="group relative overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/20 p-5 backdrop-blur-sm transition-all hover:bg-zinc-900/40">
+            <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{stat.label}</div>
+            <div className="mt-3 text-3xl font-bold tabular-nums text-zinc-100">{stat.value}</div>
+            <div className={`absolute -right-4 -bottom-4 w-24 h-24 opacity-5 transition-transform group-hover:scale-110 ${
+              stat.trend === 'up' ? 'text-emerald-500' : stat.trend === 'down' ? 'text-rose-500' : 'text-purple-500'
+            }`}>
+               <svg fill="currentColor" viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/></svg>
+            </div>
           </div>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/20">
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">Win rate</div>
-          <div className="mt-2 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            {stats.winRate.toFixed(1)}%
-          </div>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/20">
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">Wins / Losses</div>
-          <div className="mt-2 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            {stats.wins} / {stats.losses}
-          </div>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/20">
-          <div className="text-xs text-zinc-500 dark:text-zinc-400">Trades</div>
-          <div className="mt-2 text-xl font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-            {stats.totalTrades}
-          </div>
-        </div>
+        ))}
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800">
+      <section className="mt-8 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/10 backdrop-blur-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-zinc-800 text-left text-sm">
-            <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500 dark:bg-zinc-900/40 dark:text-zinc-400">
+            <thead className="bg-zinc-900/50 text-[10px] uppercase tracking-widest font-bold text-zinc-500">
               <tr>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Time</th>
-                <th className="px-4 py-3">Pair</th>
-                <th className="px-4 py-3">TF</th>
-                <th className="px-4 py-3">Pos</th>
-                <th className="px-4 py-3">Result</th>
-                <th className="px-4 py-3 text-right">PnL</th>
-                <th className="px-4 py-3 text-right">R</th>
+                <th className="px-6 py-4">Execution Date</th>
+                <th className="px-6 py-4">Asset Pair</th>
+                <th className="px-6 py-4">Direction</th>
+                <th className="px-6 py-4 text-center">RR</th>
+                <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Net PnL</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100 bg-white dark:divide-zinc-900 dark:bg-zinc-950/30">
+            <tbody className="divide-y divide-zinc-800/50">
               {tradesQuery.isLoading && (
                 <tr>
                   <td className="px-4 py-6 text-zinc-600 dark:text-zinc-400" colSpan={9}>
@@ -316,49 +335,66 @@ export function TradeLogPage() {
                   : isLoss
                     ? 'text-red-600 dark:text-red-300'
                     : 'text-zinc-700 dark:text-zinc-300'
-                const posClass =
-                  t.position_type === 'Long'
-                    ? 'text-emerald-600 dark:text-emerald-300'
-                    : 'text-red-600 dark:text-red-300'
                 const dateLabel = t.date ? format(new Date(t.date), 'yyyy-MM-dd') : '—'
                 const timeLabel = t.date ? format(new Date(t.date), 'HH:mm') : '—'
 
                 return (
                   <tr
                     key={t.id}
-                    className="cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/30"
+                    className="group cursor-pointer hover:bg-white/5 transition-colors"
                     onClick={() => {
                       setActiveTrade(t)
                       setDialogOpen(true)
                     }}
                   >
-                    <td className="px-4 py-3 text-zinc-900 dark:text-zinc-200">{dateLabel}</td>
-                    <td className="px-4 py-3 font-medium tabular-nums text-zinc-900 dark:text-zinc-200">
-                      {timeLabel}
-                    </td>
-                    <td className="px-4 py-3 text-zinc-900 dark:text-zinc-200">{t.coin_pair}</td>
-                    <td className="px-4 py-3 text-zinc-900 dark:text-zinc-200">{t.timeframe}</td>
-                    <td className={`px-4 py-3 font-medium ${posClass}`}>{t.position_type}</td>
-                    <td className={`px-4 py-3 font-medium ${resultClass}`}>{resultLabel}</td>
-                    <td className="px-4 py-3 text-right tabular-nums text-zinc-900 dark:text-zinc-200">
-                      {t.pnl_amount ?? '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-3">
-                        <div className="tabular-nums text-zinc-900 dark:text-zinc-200">{t.r_factor ?? '—'}</div>
-                        <button
-                          type="button"
-                          className="rounded-md px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 hover:text-red-600 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-red-300"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            const ok = window.confirm('Delete this trade?')
-                            if (!ok) return
-                            deleteMutation.mutate(t.id)
-                          }}
-                        >
-                          Delete
-                        </button>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <span className="text-zinc-100 font-medium">{dateLabel}</span>
+                        <span className="text-[10px] text-zinc-500 tabular-nums uppercase">{timeLabel} • {t.day_of_week}</span>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col">
+                        <span className="text-zinc-100 font-bold tracking-tight">{t.coin_pair}</span>
+                        <span className="text-[10px] text-zinc-500 uppercase">{t.timeframe} • {t.strategy_type}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-bold ring-1 ring-inset ${
+                        t.position_type === 'Long' 
+                          ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20' 
+                          : 'bg-rose-500/10 text-rose-400 ring-rose-500/20'
+                      }`}>
+                        {t.position_type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className="tabular-nums font-medium text-zinc-100">{t.r_factor ?? '—'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`font-bold ${resultClass}`}>
+                        {resultLabel}
+                      </span>
+                    </td>
+                    <td className={`px-6 py-4 text-right tabular-nums font-bold ${
+                      (t.pnl_amount ?? 0) > 0 ? 'text-emerald-400' : (t.pnl_amount ?? 0) < 0 ? 'text-rose-400' : 'text-zinc-400'
+                    }`}>
+                      {t.pnl_amount ? `${t.pnl_amount > 0 ? '+' : ''}${t.pnl_amount.toFixed(2)}` : '0.00'}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        type="button"
+                        className="rounded-lg p-2 text-zinc-500 hover:bg-rose-500/10 hover:text-rose-400 opacity-0 group-hover:opacity-100 transition-all"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const ok = window.confirm('Permanently delete this record?')
+                          if (ok) deleteMutation.mutate(t.id)
+                        }}
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </td>
                   </tr>
                 )
@@ -403,7 +439,6 @@ export function TradeLogPage() {
         templateDefaults={templateDefaults}
         pairOptions={pairPresetsQuery.data ?? []}
         sessionOptions={sessionPresetsQuery.data ?? []}
-        rrOptions={rrPresetsQuery.data ?? []}
         isSubmitting={upsertMutation.isPending}
         onSubmit={async (values) => {
           await upsertMutation.mutateAsync(values)
