@@ -84,6 +84,22 @@ const DEFAULT_PLAN_TEMPLATE = {
   ].join('\n'),
 }
 
+type PlanTemplate = typeof DEFAULT_PLAN_TEMPLATE
+
+type DailyPlanTemplateRow = {
+  user_id: string
+  plan_template: PlanTemplate | null
+  checklist_template: DailyChecklistItem[] | null
+  created_at: string
+  updated_at: string
+}
+
+async function fetchDailyTemplate() {
+  const { data, error } = await supabase.from('daily_plan_templates').select('*').maybeSingle()
+  if (error) throw error
+  return (data ?? null) as DailyPlanTemplateRow | null
+}
+
 async function fetchDailyPlan(date: string) {
   const { data, error } = await supabase.from('daily_plans').select('*').eq('date', date).maybeSingle()
   if (error) throw error
@@ -102,11 +118,20 @@ export function DailyPlanPage() {
     next_day_planning: '',
   })
   const [checklist, setChecklist] = useState<DailyChecklistItem[]>(() => normalizeChecklist(null))
+  const [templateDraft, setTemplateDraft] = useState<PlanTemplate>(() => ({ ...DEFAULT_PLAN_TEMPLATE }))
+  const [templateChecklistDraft, setTemplateChecklistDraft] = useState<DailyChecklistItem[]>(() =>
+    normalizeChecklist(null).map((c) => ({ ...c, checked: false })),
+  )
+  const [isEditingTemplate, setIsEditingTemplate] = useState(false)
 
   const queryKey = useMemo(() => ['daily_plan', selectedDate] as const, [selectedDate])
   const planQuery = useQuery({
     queryKey,
     queryFn: () => fetchDailyPlan(selectedDate),
+  })
+  const templateQuery = useQuery({
+    queryKey: ['daily_template'],
+    queryFn: fetchDailyTemplate,
   })
 
   const upsertMutation = useMutation({
@@ -134,6 +159,23 @@ export function DailyPlanPage() {
     },
   })
 
+  const saveTemplateMutation = useMutation({
+    mutationFn: async () => {
+      if (!session) throw new Error('Not signed in')
+      const payload = {
+        user_id: session.user.id,
+        plan_template: templateDraft,
+        checklist_template: templateChecklistDraft.map((c) => ({ ...c, checked: false })),
+      }
+      const { error } = await supabase.from('daily_plan_templates').upsert(payload)
+      if (error) throw error
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['daily_template'] })
+      setIsEditingTemplate(false)
+    },
+  })
+
   useEffect(() => {
     if (!planQuery.isSuccess) return
     const hydrated = planQuery.data
@@ -146,6 +188,16 @@ export function DailyPlanPage() {
     })
     setChecklist(normalizeChecklist(hydrated?.daily_checklist))
   }, [planQuery.data, planQuery.isSuccess, selectedDate])
+
+  useEffect(() => {
+    if (!templateQuery.isSuccess) return
+    const template = templateQuery.data
+    if (!template) return
+    setTemplateDraft(template.plan_template ?? { ...DEFAULT_PLAN_TEMPLATE })
+    setTemplateChecklistDraft(
+      normalizeChecklist(template.checklist_template ?? null).map((c) => ({ ...c, checked: false })),
+    )
+  }, [templateQuery.data, templateQuery.isSuccess])
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
@@ -250,10 +302,29 @@ export function DailyPlanPage() {
           className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
           type="button"
           onClick={() => {
-            setValues((v) => ({ ...v, ...DEFAULT_PLAN_TEMPLATE }))
+            const template = templateQuery.data?.plan_template ?? DEFAULT_PLAN_TEMPLATE
+            setValues((v) => ({ ...v, ...template }))
+            const checklistTemplate = templateQuery.data?.checklist_template ?? DEFAULT_DAILY_CHECKLIST
+            setChecklist(normalizeChecklist(checklistTemplate))
           }}
         >
           Load template
+        </button>
+        <button
+          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
+          type="button"
+          onClick={() => setIsEditingTemplate(true)}
+        >
+          Edit template
+        </button>
+        <button
+          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
+          type="button"
+          disabled={saveTemplateMutation.isPending}
+          onClick={() => saveTemplateMutation.mutate()}
+          title="Saves your current checklist as the default template (per account)"
+        >
+          Save template
         </button>
         <button
           className="rounded-md bg-purple-500 px-3 py-2 text-sm font-medium text-white hover:bg-purple-400 disabled:opacity-50"
@@ -264,6 +335,110 @@ export function DailyPlanPage() {
           Save plan
         </button>
       </div>
+
+      {isEditingTemplate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-4xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4 dark:border-zinc-800">
+              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-200">Edit daily template</div>
+              <button
+                type="button"
+                className="rounded-md px-2 py-1 text-sm text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+                onClick={() => setIsEditingTemplate(false)}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[80vh] overflow-y-auto p-5">
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-900/10">
+                <div className="text-sm font-medium text-zinc-900 dark:text-zinc-200">Checklist template</div>
+                <div className="mt-3 grid gap-2">
+                  {templateChecklistDraft.map((item, idx) => (
+                    <div key={item.id} className="flex gap-2">
+                      <input
+                        className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-purple-500/30 focus:ring-4 dark:border-zinc-800 dark:bg-zinc-950"
+                        value={item.label}
+                        onChange={(e) =>
+                          setTemplateChecklistDraft((prev) =>
+                            prev.map((p, i) => (i === idx ? { ...p, label: e.target.value } : p)),
+                          )
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-red-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-zinc-900"
+                        onClick={() => setTemplateChecklistDraft((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  className="mt-3 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                  onClick={() =>
+                    setTemplateChecklistDraft((prev) => [
+                      ...prev,
+                      { id: crypto.randomUUID(), label: 'New item', checked: false },
+                    ])
+                  }
+                >
+                  Add checklist item
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-4">
+                {(
+                  [
+                    ['Pre-Session template', 'pre_session_notes'],
+                    ['Trading Session template', 'trading_session_notes'],
+                    ['Personal Time template', 'personal_time_notes'],
+                    ['Post-Session template', 'post_session_notes'],
+                    ['Next Day Planning template', 'next_day_planning'],
+                  ] as const
+                ).map(([label, key]) => (
+                  <div
+                    key={key}
+                    className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/20"
+                  >
+                    <div className="text-sm font-medium text-zinc-900 dark:text-zinc-200">{label}</div>
+                    <textarea
+                      className="mt-3 min-h-24 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-purple-500/30 focus:ring-4 dark:border-zinc-800 dark:bg-zinc-950"
+                      value={templateDraft[key]}
+                      onChange={(e) =>
+                        setTemplateDraft((prev) => ({
+                          ...prev,
+                          [key]: e.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-zinc-200 px-5 py-4 dark:border-zinc-800">
+              <button
+                type="button"
+                className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
+                onClick={() => setIsEditingTemplate(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="rounded-md bg-purple-500 px-3 py-2 text-sm font-medium text-white hover:bg-purple-400 disabled:opacity-50"
+                disabled={saveTemplateMutation.isPending}
+                onClick={() => saveTemplateMutation.mutate()}
+              >
+                Save template
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -6,14 +6,14 @@ import { useSession } from '../auth/useSession'
 import type { Trade } from './types'
 import { TradeUpsertDialog } from './TradeUpsertDialog'
 import type { TradeUpsertValues } from './tradeSchema'
-import { fetchPairPresets, fetchSessionPresets } from '../presets/presets'
+import { fetchPairPresets, fetchRrPresets, fetchSessionPresets } from '../presets/presets'
 
 type Filters = {
   search: string
   onlyWins: boolean
   onlyLosses: boolean
   position: 'All' | 'Long' | 'Short'
-  journalType: 'Live' | 'Backtest'
+  tradeMode: 'Live' | 'Backtest'
 }
 
 async function fetchTrades(filters: Filters) {
@@ -26,7 +26,7 @@ async function fetchTrades(filters: Filters) {
   if (filters.onlyWins) query = query.eq('is_win', true)
   if (filters.onlyLosses) query = query.eq('is_loss', true)
   if (filters.position !== 'All') query = query.eq('position_type', filters.position)
-  query = query.eq('journal_type', filters.journalType)
+  query = query.eq('trade_mode', filters.tradeMode)
   if (filters.search.trim()) {
     const s = filters.search.trim()
     query = query.or(
@@ -56,7 +56,7 @@ export function TradeLogPage() {
     onlyWins: false,
     onlyLosses: false,
     position: 'All',
-    journalType: (localStorage.getItem('preferred_journal_type') as 'Live' | 'Backtest') || 'Live',
+    tradeMode: (localStorage.getItem('preferred_trade_mode') as 'Live' | 'Backtest') || 'Live',
   })
   const [dialogOpen, setDialogOpen] = useState(false)
   const [activeTrade, setActiveTrade] = useState<Trade | null>(null)
@@ -111,6 +111,7 @@ export function TradeLogPage() {
     queryKey: ['presets', 'sessions'],
     queryFn: fetchSessionPresets,
   })
+  const rrPresetsQuery = useQuery({ queryKey: ['presets', 'rr'], queryFn: fetchRrPresets })
 
   const stats = useMemo(() => {
     const trades = tradesQuery.data ?? []
@@ -127,12 +128,36 @@ export function TradeLogPage() {
       if (!session) throw new Error('Not signed in')
       const dateIso = new Date(`${values.date}T${values.time}:00`).toISOString()
       const dayOfWeek = format(new Date(`${values.date}T${values.time}:00`), 'EEEE')
+      const tradeMode = values.trade_mode
+      const rFactor = values.r_factor ?? null
+      const derivedWin = tradeMode === 'Backtest' && rFactor != null ? rFactor > 0 : values.is_win
+      const derivedLoss = tradeMode === 'Backtest' && rFactor != null ? rFactor < 0 : values.is_loss
+
+      // Only send columns that exist in `public.trades`
       const payload = {
-        ...values,
-        time: undefined,
+        user_id: session.user.id,
         date: dateIso,
         day_of_week: dayOfWeek,
-        user_id: session.user.id,
+        trade_mode: tradeMode,
+        coin_pair: values.coin_pair,
+        session: tradeMode === 'Live' ? values.session : null,
+        strategy_type: values.strategy_type,
+        timeframe: values.timeframe,
+        position_type: values.position_type,
+        range_percentage: values.range_percentage,
+        risk_percentage: tradeMode === 'Live' ? values.risk_percentage : null,
+        is_win: derivedWin,
+        is_loss: derivedLoss,
+        limit_level: values.limit_level,
+        pnl_amount: tradeMode === 'Live' ? values.pnl_amount : null,
+        r_factor: rFactor,
+        rr_ratio: tradeMode === 'Live' ? values.rr_ratio : null,
+        total_fees: tradeMode === 'Live' ? values.total_fees : null,
+        macro_notes: values.macro_notes,
+        setup_details: values.setup_details,
+        setup_checklist: values.setup_checklist,
+        lessons_learned: values.lessons_learned,
+        screenshot_url: values.screenshot_url,
       }
 
       if (activeTrade) {
@@ -187,10 +212,12 @@ export function TradeLogPage() {
       <header className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-zinc-100 to-zinc-400 bg-clip-text text-transparent">
-            {filters.journalType} Trade Log
+            {filters.tradeMode} Trade Log
           </h1>
           <p className="text-sm text-zinc-500">
-            {filters.journalType === 'Live' ? 'Track your real-time execution and performance.' : 'Deep dive into your backtesting sessions and data.'}
+            {filters.tradeMode === 'Live'
+              ? 'Track your real-time execution and performance.'
+              : 'Deep dive into your backtesting sessions and data.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -199,11 +226,11 @@ export function TradeLogPage() {
               <button
                 key={type}
                 onClick={() => {
-                  setFilters(f => ({ ...f, journalType: type }))
-                  localStorage.setItem('preferred_journal_type', type)
+                  setFilters((f) => ({ ...f, tradeMode: type }))
+                  localStorage.setItem('preferred_trade_mode', type)
                 }}
                 className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                  filters.journalType === type
+                  filters.tradeMode === type
                     ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
                 }`}
@@ -439,6 +466,7 @@ export function TradeLogPage() {
         templateDefaults={templateDefaults}
         pairOptions={pairPresetsQuery.data ?? []}
         sessionOptions={sessionPresetsQuery.data ?? []}
+        rrOptions={rrPresetsQuery.data ?? []}
         isSubmitting={upsertMutation.isPending}
         onSubmit={async (values) => {
           await upsertMutation.mutateAsync(values)

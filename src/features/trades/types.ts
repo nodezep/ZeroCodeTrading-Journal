@@ -31,14 +31,7 @@ export type Trade = {
   lessons_learned: string | null
   screenshot_url: string | null
   
-  // Professional Enhancements
-  journal_type: 'Live' | 'Backtest'
-  entry_price: number | null
-  stop_loss: number | null
-  take_profit: number | null
-  setup_grade: 'A' | 'B' | 'C' | 'D' | null
-  mistakes: string[] | null
-  confluence_count: number | null
+  trade_mode: 'Live' | 'Backtest'
 
   created_at: string
   updated_at: string

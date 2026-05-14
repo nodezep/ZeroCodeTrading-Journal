@@ -7,6 +7,9 @@ begin
   if not exists (select 1 from pg_type where typname = 'trade_position_type') then
     create type trade_position_type as enum ('Long', 'Short');
   end if;
+  if not exists (select 1 from pg_type where typname = 'trade_mode_type') then
+    create type trade_mode_type as enum ('Live', 'Backtest');
+  end if;
 end$$;
 
 -- 2) Utility: updated_at trigger
@@ -26,6 +29,7 @@ create table if not exists public.trades (
   user_id uuid not null references auth.users (id) on delete cascade,
   date timestamptz not null,
   day_of_week text not null,
+  trade_mode trade_mode_type not null default 'Live',
   coin_pair text not null,
   session text,
   strategy_type text not null,
@@ -72,6 +76,38 @@ create table if not exists public.daily_plans (
   updated_at timestamptz not null default now(),
   constraint daily_plans_user_date_unique unique (user_id, date)
 );
+
+-- 7) Daily plan templates (per-user)
+create table if not exists public.daily_plan_templates (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  plan_template jsonb,
+  checklist_template jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+drop trigger if exists set_daily_plan_templates_updated_at on public.daily_plan_templates;
+create trigger set_daily_plan_templates_updated_at
+before update on public.daily_plan_templates
+for each row execute function public.set_updated_at();
+
+alter table public.daily_plan_templates enable row level security;
+
+drop policy if exists "daily_plan_templates_select_own" on public.daily_plan_templates;
+create policy "daily_plan_templates_select_own" on public.daily_plan_templates
+for select
+using (auth.uid() = user_id);
+
+drop policy if exists "daily_plan_templates_insert_own" on public.daily_plan_templates;
+create policy "daily_plan_templates_insert_own" on public.daily_plan_templates
+for insert
+with check (auth.uid() = user_id);
+
+drop policy if exists "daily_plan_templates_update_own" on public.daily_plan_templates;
+create policy "daily_plan_templates_update_own" on public.daily_plan_templates
+for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
 
 drop trigger if exists set_daily_plans_updated_at on public.daily_plans;
 create trigger set_daily_plans_updated_at
