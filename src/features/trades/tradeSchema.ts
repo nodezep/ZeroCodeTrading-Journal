@@ -10,6 +10,7 @@ export const tradeUpsertSchema = z.object({
   date: z.string().min(1), // yyyy-MM-dd
   time: z.string().min(1), // HH:mm
   trade_mode: z.enum(['Live', 'Backtest']),
+  account_id: z.string().uuid().nullable(),
   coin_pair: z.string().min(1),
   session: z.string().nullable(),
   strategy_type: z.string().min(1),

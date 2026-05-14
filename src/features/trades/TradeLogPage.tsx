@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { supabase } from '../../lib/supabaseClient'
+import { fetchTradingAccounts } from '../accounts/accounts'
 import { useSession } from '../auth/useSession'
 import type { Trade } from './types'
 import { TradeUpsertDialog } from './TradeUpsertDialog'
@@ -107,6 +108,7 @@ export function TradeLogPage() {
   const queryKey = useMemo(() => ['trades', filters] as const, [filters])
   const tradesQuery = useQuery({ queryKey, queryFn: () => fetchTrades(filters) })
   const pairPresetsQuery = useQuery({ queryKey: ['presets', 'pairs'], queryFn: fetchPairPresets })
+  const accountsQuery = useQuery({ queryKey: ['accounts'], queryFn: fetchTradingAccounts })
   const sessionPresetsQuery = useQuery({
     queryKey: ['presets', 'sessions'],
     queryFn: fetchSessionPresets,
@@ -139,6 +141,7 @@ export function TradeLogPage() {
         date: dateIso,
         day_of_week: dayOfWeek,
         trade_mode: tradeMode,
+        account_id: tradeMode === 'Live' ? values.account_id : null,
         coin_pair: values.coin_pair,
         session: tradeMode === 'Live' ? values.session : null,
         strategy_type: values.strategy_type,
@@ -191,6 +194,8 @@ export function TradeLogPage() {
       <nav className="mb-8 flex items-center justify-between border-b border-zinc-800 pb-4">
         <div className="flex gap-6">
           <a href="/" className="text-sm font-medium text-zinc-100 hover:text-purple-400 transition-colors">Journal</a>
+          <a href="/calendar" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Calendar</a>
+          <a href="/accounts" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Accounts</a>
           <a href="/plan" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Daily Plan</a>
           <a href="/settings" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Settings</a>
         </div>
@@ -467,6 +472,7 @@ export function TradeLogPage() {
         pairOptions={pairPresetsQuery.data ?? []}
         sessionOptions={sessionPresetsQuery.data ?? []}
         rrOptions={rrPresetsQuery.data ?? []}
+        accountOptions={accountsQuery.data ?? []}
         isSubmitting={upsertMutation.isPending}
         onSubmit={async (values) => {
           await upsertMutation.mutateAsync(values)

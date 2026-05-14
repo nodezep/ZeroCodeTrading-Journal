@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { supabase } from '../../lib/supabaseClient'
+import type { TradingAccount } from '../accounts/accounts'
 import type { PresetRow, RrPresetRow } from '../presets/presets'
 import { tradeUpsertSchema } from './tradeSchema'
 import type { TradeUpsertValues } from './tradeSchema'
@@ -49,6 +50,7 @@ export function TradeUpsertDialog({
   pairOptions,
   sessionOptions,
   rrOptions,
+  accountOptions,
 }: {
   open: boolean
   onClose: () => void
@@ -59,6 +61,7 @@ export function TradeUpsertDialog({
   pairOptions: PresetRow[]
   sessionOptions: PresetRow[]
   rrOptions: RrPresetRow[]
+  accountOptions: TradingAccount[]
 }) {
   const queryClient = useQueryClient()
 
@@ -66,6 +69,7 @@ export function TradeUpsertDialog({
     resolver: zodResolver(tradeUpsertSchema),
     defaultValues: {
       trade_mode: 'Live',
+      account_id: null,
       date: format(new Date(), 'yyyy-MM-dd'),
       time: format(new Date(), 'HH:mm'),
       coin_pair: templateDefaults.coin_pair,
@@ -95,6 +99,7 @@ export function TradeUpsertDialog({
     if (!initialTrade) {
       form.reset({
         trade_mode: 'Live',
+        account_id: null,
         date: format(new Date(), 'yyyy-MM-dd'),
         time: format(new Date(), 'HH:mm'),
         coin_pair: templateDefaults.coin_pair,
@@ -123,6 +128,7 @@ export function TradeUpsertDialog({
     const d = new Date(initialTrade.date)
     form.reset({
       trade_mode: initialTrade.trade_mode ?? 'Live',
+      account_id: initialTrade.account_id ?? null,
       date: format(d, 'yyyy-MM-dd'),
       time: format(d, 'HH:mm'),
       coin_pair: initialTrade.coin_pair ?? '',
@@ -319,6 +325,26 @@ export function TradeUpsertDialog({
                 </select>
               )}
             </label>
+
+            {tradeMode === 'Live' && (
+              <label className="block text-sm">
+                <span className="text-zinc-700 dark:text-zinc-300">Trading account</span>
+                <select
+                  className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none ring-purple-500/30 focus:ring-4 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-100"
+                  value={form.watch('account_id') ?? ''}
+                  onChange={(e) => form.setValue('account_id', e.target.value || null)}
+                >
+                  <option value="">No account selected</option>
+                  {accountOptions
+                    .filter((account) => account.status !== 'Archived')
+                    .map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} {account.status === 'Blown' ? '(blown)' : ''}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
 
             {tradeMode === 'Live' && (
               <label className="block text-sm">
@@ -532,4 +558,3 @@ export function TradeUpsertDialog({
     </div>
   )
 }
-

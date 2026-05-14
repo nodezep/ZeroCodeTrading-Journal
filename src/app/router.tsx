@@ -5,6 +5,10 @@ import { LoginPage } from '../features/auth/LoginPage'
 import { lazy, Suspense } from 'react'
 
 const TradeLogPage = lazy(() => import('../features/trades/TradeLogPage').then((m) => ({ default: m.TradeLogPage })))
+const PerformanceCalendarPage = lazy(() =>
+  import('../features/trades/PerformanceCalendarPage').then((m) => ({ default: m.PerformanceCalendarPage })),
+)
+const AccountsPage = lazy(() => import('../features/accounts/AccountsPage').then((m) => ({ default: m.AccountsPage })))
 const DailyPlanPage = lazy(() => import('../features/dailyPlans/DailyPlanPage').then((m) => ({ default: m.DailyPlanPage })))
 const SettingsPage = lazy(() => import('../features/presets/SettingsPage').then((m) => ({ default: m.SettingsPage })))
 
@@ -30,6 +34,22 @@ export const router = createBrowserRouter([
             element: (
               <Suspense fallback={<PageLoader />}>
                 <TradeLogPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/calendar',
+            element: (
+              <Suspense fallback={<PageLoader />}>
+                <PerformanceCalendarPage />
+              </Suspense>
+            ),
+          },
+          {
+            path: '/accounts',
+            element: (
+              <Suspense fallback={<PageLoader />}>
+                <AccountsPage />
               </Suspense>
             ),
           },

@@ -32,6 +32,7 @@ export type Trade = {
   screenshot_url: string | null
   
   trade_mode: 'Live' | 'Backtest'
+  account_id: string | null
 
   created_at: string
   updated_at: string
