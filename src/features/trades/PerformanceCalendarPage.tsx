@@ -380,23 +380,25 @@ export function PerformanceCalendarPage() {
                   key={day.key}
                   type="button"
                   className={[
-                    'min-h-28 border p-3 text-left transition hover:bg-zinc-900/70',
+                    'min-h-20 min-w-0 overflow-hidden border p-2 text-left transition hover:bg-zinc-900/70 sm:min-h-28 sm:p-3',
                     tone,
                     isSelected ? 'ring-2 ring-purple-400 ring-inset' : '',
                     isCurrentMonth ? '' : 'opacity-35',
                   ].join(' ')}
                   onClick={() => setSelectedDate(day.key)}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
                     <span className="text-sm font-bold text-zinc-100">{format(day.date, 'd')}</span>
-                    {hasTrades && <span className="text-[10px] text-zinc-500">{day.trades.length} trades</span>}
+                    {hasTrades && (
+                      <span className="min-w-0 truncate text-[10px] text-zinc-500">{day.trades.length} trades</span>
+                    )}
                   </div>
                   {hasTrades && (
-                    <div className="mt-5">
-                      <div className="text-xl font-black tabular-nums">
+                    <div className="mt-3 min-w-0 sm:mt-5">
+                      <div className="w-full min-w-0 truncate text-sm font-black tabular-nums leading-tight sm:text-xl">
                         {mode === 'Live' ? money(day.totalPnl, currency) : formatR(day.totalR)}
                       </div>
-                      <div className="mt-1 text-[11px] text-zinc-500">
+                      <div className="mt-1 w-full min-w-0 truncate text-[11px] leading-tight text-zinc-500">
                         {mode === 'Live' ? formatPercent(dayPercent) : `${day.wins}W / ${day.losses}L`}
                       </div>
                     </div>
