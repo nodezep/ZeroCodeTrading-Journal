@@ -229,27 +229,6 @@ export function PerformanceCalendarPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
-      <nav className="mb-8 flex items-center justify-between border-b border-zinc-800 pb-4">
-        <div className="flex gap-6">
-          <a href="/trades" className="text-sm font-medium text-zinc-500 transition-colors hover:text-purple-400">
-            Journal
-          </a>
-          <a href="/calendar" className="text-sm font-medium text-zinc-100 transition-colors hover:text-purple-400">
-            Calendar
-          </a>
-          <a href="/accounts" className="text-sm font-medium text-zinc-500 transition-colors hover:text-purple-400">
-            Accounts
-          </a>
-          <a href="/plan" className="text-sm font-medium text-zinc-500 transition-colors hover:text-purple-400">
-            Daily Plan
-          </a>
-          <a href="/settings" className="text-sm font-medium text-zinc-500 transition-colors hover:text-purple-400">
-            Settings
-          </a>
-        </div>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">{session?.user?.email}</span>
-      </nav>
-
       <header className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>

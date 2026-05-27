@@ -191,29 +191,6 @@ export function TradeLogPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 transition-all duration-300">
-      <nav className="mb-8 flex items-center justify-between border-b border-zinc-800 pb-4">
-        <div className="flex gap-6">
-          <a href="/" className="text-sm font-medium text-zinc-100 hover:text-purple-400 transition-colors">Journal</a>
-          <a href="/calendar" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Calendar</a>
-          <a href="/accounts" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Accounts</a>
-          <a href="/plan" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Daily Plan</a>
-          <a href="/settings" className="text-sm font-medium text-zinc-500 hover:text-purple-400 transition-colors">Settings</a>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest">{session?.user?.email}</span>
-          <button
-            type="button"
-            onClick={async () => {
-              await supabase.auth.signOut()
-              window.location.href = '/login'
-            }}
-            className="text-xs font-bold text-zinc-500 hover:text-rose-400 transition-colors uppercase tracking-wider"
-          >
-            Sign Out
-          </button>
-        </div>
-      </nav>
-
       <header className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-zinc-100 to-zinc-400 bg-clip-text text-transparent">

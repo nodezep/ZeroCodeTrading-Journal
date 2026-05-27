@@ -1,25 +1,25 @@
-import { Outlet } from 'react-router-dom'
-import { useTheme } from '../app/theme'
+import { Outlet, useLocation } from 'react-router-dom'
+import { TopNav } from './TopNav'
 
 export function AppLayout() {
-  const { theme, toggleTheme } = useTheme()
+  const location = useLocation()
+  const path = location.pathname
+  const active =
+    path === '/dashboard'
+      ? ('Dashboard' as const)
+      : path === '/calendar'
+        ? ('Calendar' as const)
+        : path === '/accounts'
+          ? ('Accounts' as const)
+          : path === '/plan'
+            ? ('Daily Plan' as const)
+            : path === '/settings'
+              ? ('Settings' as const)
+              : ('Journal' as const)
+
   return (
     <div className="min-h-full">
-      <div className="sticky top-0 z-40 border-b border-zinc-200/60 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/60">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <a className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-100" href="/trades">
-            Trading Journal
-          </a>
-          <button
-            type="button"
-            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-100 dark:hover:bg-zinc-900"
-            onClick={toggleTheme}
-            title="Toggle light/dark"
-          >
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </button>
-        </div>
-      </div>
+      <TopNav active={active} />
       <Outlet />
     </div>
   )

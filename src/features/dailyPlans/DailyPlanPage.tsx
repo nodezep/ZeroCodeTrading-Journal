@@ -42,16 +42,20 @@ const DEFAULT_DAILY_CHECKLIST: DailyChecklistItem[] = [
 ]
 
 function normalizeChecklist(input: unknown): DailyChecklistItem[] {
-  const map = new Map<string, DailyChecklistItem>()
+  const sanitized: DailyChecklistItem[] = []
+  const seen = new Set<string>()
   if (Array.isArray(input)) {
     for (const raw of input) {
       if (!raw || typeof raw !== 'object') continue
       const item = raw as Partial<DailyChecklistItem>
       if (typeof item.id !== 'string' || typeof item.label !== 'string') continue
-      map.set(item.id, { id: item.id, label: item.label, checked: !!item.checked })
+      if (seen.has(item.id)) continue
+      seen.add(item.id)
+      sanitized.push({ id: item.id, label: item.label, checked: !!item.checked })
     }
+    return sanitized
   }
-  return DEFAULT_DAILY_CHECKLIST.map((d) => map.get(d.id) ?? d)
+  return DEFAULT_DAILY_CHECKLIST.map((d) => ({ ...d }))
 }
 
 const DEFAULT_PLAN_TEMPLATE = {
@@ -109,7 +113,12 @@ async function fetchDailyPlan(date: string) {
 export function DailyPlanPage() {
   const { session } = useSession()
   const queryClient = useQueryClient()
-  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const raw = new URLSearchParams(window.location.search).get('date')
+    if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+    return format(new Date(), 'yyyy-MM-dd')
+  })
+  const [isEditingChecklist, setIsEditingChecklist] = useState(false)
   const [values, setValues] = useState({
     pre_session_notes: '',
     trading_session_notes: '',
@@ -177,6 +186,13 @@ export function DailyPlanPage() {
   })
 
   useEffect(() => {
+    const next = `/plan?date=${selectedDate}`
+    if (window.location.pathname === '/plan' && window.location.search !== `?date=${selectedDate}`) {
+      window.history.replaceState(null, '', next)
+    }
+  }, [selectedDate])
+
+  useEffect(() => {
     if (!planQuery.isSuccess) return
     const hydrated = planQuery.data
     setValues({
@@ -186,8 +202,15 @@ export function DailyPlanPage() {
       post_session_notes: hydrated?.post_session_notes ?? '',
       next_day_planning: hydrated?.next_day_planning ?? '',
     })
-    setChecklist(normalizeChecklist(hydrated?.daily_checklist))
-  }, [planQuery.data, planQuery.isSuccess, selectedDate])
+    if (hydrated?.daily_checklist) {
+      setChecklist(normalizeChecklist(hydrated.daily_checklist))
+      setIsEditingChecklist(false)
+      return
+    }
+    const fallback = templateQuery.data?.checklist_template ?? DEFAULT_DAILY_CHECKLIST
+    setChecklist(normalizeChecklist(fallback).map((c) => ({ ...c, checked: false })))
+    setIsEditingChecklist(false)
+  }, [planQuery.data, planQuery.isSuccess, selectedDate, templateQuery.data])
 
   useEffect(() => {
     if (!templateQuery.isSuccess) return
@@ -205,24 +228,6 @@ export function DailyPlanPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Daily Trade Plan</h1>
           <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">Plan, execute, reflect</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <a
-            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
-            href="/trades"
-          >
-            Back to trades
-          </a>
-          <button
-            className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-200 dark:hover:bg-zinc-900"
-            type="button"
-            onClick={async () => {
-              await supabase.auth.signOut()
-              window.location.href = '/login'
-            }}
-          >
-            Sign out
-          </button>
         </div>
       </header>
 
@@ -251,27 +256,62 @@ export function DailyPlanPage() {
             <div className="text-sm font-medium text-zinc-900 dark:text-zinc-200">
               Daily Accountability Checklist
             </div>
-            <div className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200">
-              {checklist.filter((c) => c.checked).length}/{checklist.length} complete
+            <div className="flex items-center gap-2">
+              <div className="rounded-full bg-zinc-100 px-2 py-1 text-xs text-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-200">
+                {checklist.filter((c) => c.checked).length}/{checklist.length} complete
+              </div>
+              <button
+                type="button"
+                className="rounded-md px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-200"
+                onClick={() => setIsEditingChecklist((v) => !v)}
+              >
+                {isEditingChecklist ? 'Done' : 'Edit'}
+              </button>
             </div>
           </div>
           <div className="mt-3 grid gap-2">
             {checklist.map((item, idx) => (
-              <label key={item.id} className="flex cursor-pointer items-start gap-3 text-sm">
+              <div key={item.id} className="flex items-start gap-3 text-sm">
                 <input
                   type="checkbox"
                   className="mt-1 h-4 w-4 rounded border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950"
                   checked={item.checked}
                   onChange={(e) => {
-                    setChecklist((prev) =>
-                      prev.map((p, i) => (i === idx ? { ...p, checked: e.target.checked } : p)),
-                    )
+                    setChecklist((prev) => prev.map((p, i) => (i === idx ? { ...p, checked: e.target.checked } : p)))
                   }}
                 />
-                <span className="text-zinc-900 dark:text-zinc-200">{item.label}</span>
-              </label>
+                {isEditingChecklist ? (
+                  <>
+                    <input
+                      className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none ring-purple-500/30 focus:ring-4 dark:border-zinc-800 dark:bg-zinc-950"
+                      value={item.label}
+                      onChange={(e) =>
+                        setChecklist((prev) => prev.map((p, i) => (i === idx ? { ...p, label: e.target.value } : p)))
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-red-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-red-200 dark:hover:bg-zinc-900"
+                      onClick={() => setChecklist((prev) => prev.filter((_, i) => i !== idx))}
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <span className="text-zinc-900 dark:text-zinc-200">{item.label}</span>
+                )}
+              </div>
             ))}
           </div>
+          {isEditingChecklist && (
+            <button
+              type="button"
+              className="mt-3 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-900"
+              onClick={() => setChecklist((prev) => [...prev, { id: crypto.randomUUID(), label: 'New item', checked: false }])}
+            >
+              Add checklist item
+            </button>
+          )}
         </div>
 
         {(
@@ -305,7 +345,8 @@ export function DailyPlanPage() {
             const template = templateQuery.data?.plan_template ?? DEFAULT_PLAN_TEMPLATE
             setValues((v) => ({ ...v, ...template }))
             const checklistTemplate = templateQuery.data?.checklist_template ?? DEFAULT_DAILY_CHECKLIST
-            setChecklist(normalizeChecklist(checklistTemplate))
+            setChecklist(normalizeChecklist(checklistTemplate).map((c) => ({ ...c, checked: false })))
+            setIsEditingChecklist(false)
           }}
         >
           Load template

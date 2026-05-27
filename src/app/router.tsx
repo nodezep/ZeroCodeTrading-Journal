@@ -11,6 +11,9 @@ const PerformanceCalendarPage = lazy(() =>
 const AccountsPage = lazy(() => import('../features/accounts/AccountsPage').then((m) => ({ default: m.AccountsPage })))
 const DailyPlanPage = lazy(() => import('../features/dailyPlans/DailyPlanPage').then((m) => ({ default: m.DailyPlanPage })))
 const SettingsPage = lazy(() => import('../features/presets/SettingsPage').then((m) => ({ default: m.SettingsPage })))
+const DashboardPage = lazy(() =>
+  import('../features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })),
+)
 
 function PageLoader() {
   return (
@@ -29,6 +32,14 @@ export const router = createBrowserRouter([
       {
         element: <RequireAuth />,
         children: [
+          {
+            path: '/dashboard',
+            element: (
+              <Suspense fallback={<PageLoader />}>
+                <DashboardPage />
+              </Suspense>
+            ),
+          },
           {
             path: '/trades',
             element: (
